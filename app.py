@@ -47,7 +47,7 @@ def draw_gauge(value, max_val=15):
                 {'range': [12, max_val], 'color': "red"}],
         }
     ))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # 4. Lógica para buscar os dados Reais
 now = time.time()
