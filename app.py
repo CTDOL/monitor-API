@@ -10,7 +10,7 @@ st.title("Consumo da API Gemini 🚀")
 
 # 1. Carregar Credenciais dos SECRETS do Streamlit (Muito Seguro!)
 try:
-    # Lemos a string JSON que vamos configurar na plataforma do Streamlit
+    # Lemos a string JSON que configuramos na plataforma do Streamlit
     gcp_json_str = st.secrets["GCP_CREDENTIALS"]
     cred_dict = json.loads(gcp_json_str)
     
@@ -49,14 +49,44 @@ def draw_gauge(value, max_val=15):
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-# 4. Lógica para buscar os dados (Esqueleto)
-# Aqui entraria a query à métrica exacta do Cloud Monitoring.
-# Como a API do Monitoring exige um intervalo de tempo (ex: últimos 5 mins), 
-# deixo aqui o placeholder para o velocímetro renderizar na perfeição:
-valor_atual = 0 # Substituir pela chamada real a client.list_time_series()
+# 4. Lógica para buscar os dados Reais
+now = time.time()
+seconds = int(now)
+nanos = int((now - seconds) * 10 ** 9)
 
+# Janela de tempo: últimos 3 minutos para garantir que apanha os dados mais recentes
+interval = monitoring_v3.TimeInterval(
+    {
+        "end_time": {"seconds": seconds, "nanos": nanos},
+        "start_time": {"seconds": (seconds - 180), "nanos": nanos},
+    }
+)
+
+try:
+    # Fazer o pedido à API do Cloud Monitoring
+    results = client.list_time_series(
+        request={
+            "name": project_name,
+            "filter": 'metric.type = "generativelanguage.googleapis.com/quota/generate_requests_per_model/usage"',
+            "interval": interval,
+        }
+    )
+    
+    valor_atual = 0
+    # O Google devolve uma lista; vamos buscar o ponto de dados mais recente
+    for result in results:
+        if result.points:
+            ponto = result.points[0].value
+            valor_atual = ponto.int64_value if ponto.int64_value else ponto.double_value
+            break
+            
+except Exception as e:
+    st.warning("Aguardando tráfego na API ou sincronização de dados do Google...")
+    valor_atual = 0
+
+# Desenhar o gráfico com o valor real
 draw_gauge(valor_atual)
 
-# Botão para atualizar
+# Botão para atualizar a página e forçar nova leitura
 if st.button("Atualizar Métrica"):
     st.rerun()
